@@ -6,11 +6,22 @@ import 'package:universal_platform/universal_platform.dart';
 
 final log = Logger('coin_data');
 
+final supportedMarkets = ['BTC-USD', 'LTC-USD', 'LTC-BTC', 'ETH-USD', 'ETH-BTC', 'ZEC-USD', 'ZEC-BTC', 'XMR-USD', 'XMR-BTC'];
+
 class Market {
-  final String symbol;
+  final String exchangeId;
   final String baseAsset;
   final String quoteAsset;
-  Market(this.symbol, this.baseAsset, this.quoteAsset);
+  Market(this.exchangeId, this.baseAsset, this.quoteAsset);
+
+  String symbol() {
+    return '$baseAsset-$quoteAsset';
+  }
+
+  bool supported() {
+    return supportedMarkets.contains(symbol());
+  }
+
   factory Market.empty() => Market('', '', '');
 }
 
@@ -49,9 +60,9 @@ class CoinData {
     if (body != null) {
       var json = jsonDecode(body);
       for (var item in json) {
-        var symbol = item[0];
-        if (symbol[0] != 't') continue;
-        var pair = (symbol as String).substring(1);
+        var exchangeId = item[0];
+        if (exchangeId[0] != 't') continue;
+        var pair = (exchangeId as String).substring(1);
         String baseAsset, quoteAsset;
         if (pair.length == 6) {
           baseAsset = pair.substring(0, 3);
@@ -62,16 +73,17 @@ class CoinData {
           baseAsset = parts[0];
           quoteAsset = parts[1];
         }
-        markets.add(Market(symbol, baseAsset, quoteAsset));
+        var market = Market(exchangeId, baseAsset, quoteAsset);
+        if (market.supported()) markets.add(market);
       }
     }
     return markets;
   }
 
-  Future<List<CandleData>> candles(String symbol, String interval) async {
+  Future<List<CandleData>> candles(String exchangeId, String interval) async {
     List<CandleData> data = [];
     var body =
-        await _get('candles/trade:$interval:$symbol/hist?limit=10000&sort=-1');
+        await _get('candles/trade:$interval:$exchangeId/hist?limit=10000&sort=-1');
     if (body != null) {
       var json = jsonDecode(body);
       for (var item in json) {

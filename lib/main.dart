@@ -67,10 +67,10 @@ class MyAppState extends State<MyApp> {
       DropdownButton<String>(
           items: _markets
               .map((e) => DropdownMenuItem<String>(
-                  value: e.symbol,
-                  child: Text('${e.baseAsset}-${e.quoteAsset}')))
+                  value: e.exchangeId,
+                  child: Text(e.symbol())))
               .toList(),
-          value: _market.symbol,
+          value: _market.exchangeId,
           onChanged: _marketChange),
       const SizedBox(width: 10),
       ToggleButtons(
@@ -131,9 +131,9 @@ class MyAppState extends State<MyApp> {
     _updateCandles(market, _interval());
   }
 
-  void _marketChange(String? symbol) {
+  void _marketChange(String? exchangeId) {
     for (var market in _markets) {
-      if (market.symbol == symbol) {
+      if (market.exchangeId == exchangeId) {
         _setMarket(market);
         return;
       }
@@ -155,7 +155,7 @@ class MyAppState extends State<MyApp> {
     var reqId = _requestId;
     log.info('get data for ${market.symbol} $interval, req id: $reqId..');
     setState(() => _retreivingData = true);
-    _coinData.candles(market.symbol, interval).then((value) {
+    _coinData.candles(market.exchangeId, interval).then((value) {
       log.info('got data for ${market.symbol} $interval, req id: $reqId');
       if (_requestId > reqId) return;
       var model = context.read<ChartModel>();
