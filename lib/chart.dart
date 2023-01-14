@@ -16,13 +16,11 @@ class ChartModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  computeTrendLines() {
-    final ma7 = CandleData.computeMA(_data, 7);
-    final ma30 = CandleData.computeMA(_data, 30);
-    final ma90 = CandleData.computeMA(_data, 90);
+  computeMa200() {
+    final ma200 = CandleData.computeMA(_data, 200);
 
     for (int i = 0; i < _data.length; i++) {
-      _data[i].trends = [ma7[i], ma30[i], ma90[i]];
+      _data[i].trends = [ma200[i]];
     }
 
     notifyListeners();
