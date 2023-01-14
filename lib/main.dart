@@ -38,6 +38,7 @@ class MyAppState extends State<MyApp> {
   List<bool> _selectedInterval = [false, false, true, false, false];
   bool _haveData = false;
   bool _retreivingData = false;
+  int _requestId = 0;
 
   @override
   void initState() {
@@ -150,9 +151,13 @@ class MyAppState extends State<MyApp> {
   }
 
   void _updateCandles(Market market, String interval) {
+    _requestId += 1;
+    var reqId = _requestId;
+    log.info('get data for ${market.symbol} $interval, req id: $reqId..');
     setState(() => _retreivingData = true);
     _coinData.candles(market.symbol, interval).then((value) {
-      log.info('retrieved data for ${market.symbol}');
+      log.info('got data for ${market.symbol} $interval, req id: $reqId');
+      if (_requestId > reqId) return;
       var model = context.read<ChartModel>();
       model.updateData(value);
       _updateMa200();
