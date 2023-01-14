@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
+import 'config.dart';
 import 'chart.dart';
 import 'coin_data.dart';
 
 final log = Logger('main');
 
 void main() {
+  // setup logging
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((record) {
+    // ignore: avoid_print
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+  log.info('Git SHA: $gitSha');
+  log.info('Build Date: $buildDate');
   runApp(ChangeNotifierProvider(
       create: (context) => ChartModel(), child: const MyApp()));
 }
