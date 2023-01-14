@@ -29,12 +29,12 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> {
-  final _coinData = CoinData();
   bool _darkMode = true;
+  Exchange _exch = Exchange.Bitfinex;
+  ExchData _exchData = createExchData(Exchange.Bitfinex);
   List<Market> _markets = [];
   Market _market = Market.empty();
   bool _showMa200 = false;
-  final List<String> _intervals = ['5m', '1h', '1D', '1W', '1M'];
   List<bool> _selectedInterval = [false, false, true, false, false];
   bool _haveData = false;
   bool _retreivingData = false;
@@ -42,60 +42,60 @@ class MyAppState extends State<MyApp> {
 
   @override
   void initState() {
-    _coinData.markets().then((value) {
-      setState(() => _markets = value);
-      if (value.isNotEmpty) {
-        _setMarket(value[0]);
-      }
-    });
+    _initMarkets();
     super.initState();
   }
 
   Widget _makeControls() {
-    if (_markets.isEmpty) {
-      return Row(children: [
-        Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(_coinData.source())),
-        const CircularProgressIndicator()
-      ]);
-    }
     return Row(children: [
       const SizedBox(width: 10),
-      Text(_coinData.source()),
-      const SizedBox(width: 10),
-      DropdownButton<String>(
-          items: _markets
-              .map((e) => DropdownMenuItem<String>(
-                  value: e.exchangeId,
-                  child: Text(e.symbol())))
+      DropdownButton<Exchange>(
+          items: Exchange.values
+              .map((e) =>
+                  DropdownMenuItem<Exchange>(value: e, child: Text(e.name)))
               .toList(),
-          value: _market.exchangeId,
-          onChanged: _marketChange),
+          value: _exch,
+          onChanged: _exchChange),
       const SizedBox(width: 10),
-      ToggleButtons(
-        isSelected: [_showMa200],
-        onPressed: (int index) => _toggleMa200(),
-        children: const [Text('MA 200')],
-      ),
+      _markets.isEmpty
+          ? const SizedBox()
+          : DropdownButton<String>(
+              items: _markets
+                  .map((e) => DropdownMenuItem<String>(
+                      value: e.exchangeId, child: Text(e.symbol())))
+                  .toList(),
+              value: _market.exchangeId,
+              onChanged: _marketChange),
       const SizedBox(width: 10),
-      ToggleButtons(
-        isSelected: _selectedInterval,
-        onPressed: (int index) {
-          for (int buttonIndex = 0;
-              buttonIndex < _selectedInterval.length;
-              buttonIndex++) {
-            if (buttonIndex == index) {
-              _selectedInterval[buttonIndex] = true;
-            } else {
-              _selectedInterval[buttonIndex] = false;
-            }
-          }
-          setState(() => _selectedInterval = _selectedInterval);
-          _updateCandles(_market, _interval());
-        },
-        children: _intervals.map((e) => Text(e)).toList(),
-      ),
+      _markets.isEmpty
+          ? const SizedBox()
+          : ToggleButtons(
+              isSelected: [_showMa200],
+              onPressed: (int index) => _toggleMa200(),
+              children: const [Text('MA 200')],
+            ),
+      const SizedBox(width: 10),
+      _markets.isEmpty
+          ? const SizedBox()
+          : ToggleButtons(
+              isSelected: _selectedInterval,
+              onPressed: (int index) {
+                for (int buttonIndex = 0;
+                    buttonIndex < _selectedInterval.length;
+                    buttonIndex++) {
+                  if (buttonIndex == index) {
+                    _selectedInterval[buttonIndex] = true;
+                  } else {
+                    _selectedInterval[buttonIndex] = false;
+                  }
+                }
+                setState(() => _selectedInterval = _selectedInterval);
+                _updateCandles(_market, _interval());
+              },
+              children: MarketInterval.values
+                  .map((e) => Text(e.name.substring(1)))
+                  .toList(),
+            ),
     ]);
   }
 
@@ -126,6 +126,24 @@ class MyAppState extends State<MyApp> {
         ));
   }
 
+  void _exchChange(Exchange? exch) {
+    if (exch == null) return;
+    setState(() {
+      _exch = exch;
+      _exchData = createExchData(exch);
+      _initMarkets();
+    });
+  }
+
+  void _initMarkets() {
+    _exchData.markets().then((value) {
+      setState(() => _markets = value);
+      if (value.isNotEmpty) {
+        _setMarket(value[0]);
+      }
+    });
+  }
+
   void _setMarket(Market market) {
     setState(() => _market = market);
     _updateCandles(market, _interval());
@@ -140,22 +158,22 @@ class MyAppState extends State<MyApp> {
     }
   }
 
-  String _interval() {
+  MarketInterval _interval() {
     for (int i = 0; i < _selectedInterval.length; i++) {
       if (_selectedInterval[i]) {
-        return _intervals[i];
+        return MarketInterval.values[i];
       }
     }
     log.severe('could not find valid interval');
-    return _intervals[0];
+    return MarketInterval.values[0];
   }
 
-  void _updateCandles(Market market, String interval) {
+  void _updateCandles(Market market, MarketInterval interval) {
     _requestId += 1;
     var reqId = _requestId;
     log.info('get data for ${market.symbol} $interval, req id: $reqId..');
     setState(() => _retreivingData = true);
-    _coinData.candles(market.exchangeId, interval).then((value) {
+    _exchData.candles(market.exchangeId, interval).then((value) {
       log.info('got data for ${market.symbol} $interval, req id: $reqId');
       if (_requestId > reqId) return;
       var model = context.read<ChartModel>();

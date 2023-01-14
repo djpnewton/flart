@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:interactive_chart/interactive_chart.dart';
@@ -6,7 +8,32 @@ import 'package:universal_platform/universal_platform.dart';
 
 final log = Logger('coin_data');
 
-final supportedMarkets = ['BTC-USD', 'LTC-USD', 'LTC-BTC', 'ETH-USD', 'ETH-BTC', 'ZEC-USD', 'ZEC-BTC', 'XMR-USD', 'XMR-BTC'];
+final supportedMarkets = [
+  'BTC-USD',
+  'BTC-USDT',
+  'LTC-USD',
+  'LTC-USDT',
+  'LTC-BTC',
+  'ETH-USD',
+  'ETH-USDT',
+  'ETH-BTC',
+  'ZEC-USD',
+  'ZEC-USDT',
+  'ZEC-BTC',
+  'XMR-USD',
+  'XMR-USDT',
+  'XMR-BTC'
+];
+
+enum Exchange { Bitfinex, Binance }
+
+enum MarketInterval {
+  _5m,
+  _1h,
+  _1d,
+  _1w,
+  _1M;
+}
 
 class Market {
   final String exchangeId;
@@ -25,9 +52,7 @@ class Market {
   factory Market.empty() => Market('', '', '');
 }
 
-Future<String?> _get(String url) async {
-  // https://docs.bitfinex.com
-  url = 'https://api-pub.bitfinex.com/v2/$url';
+Future<String?> httpGet(String url) async {
   var uri = Uri.parse(url);
   if (UniversalPlatform.isWeb) {
     // CORS proxy server for web clients
@@ -49,16 +74,36 @@ Future<String?> _get(String url) async {
   }
 }
 
-class CoinData {
-  String source() {
-    return 'Bitfinex';
+ExchData createExchData(Exchange exch) {
+  switch (exch) {
+    case Exchange.Bitfinex:
+      return BitfinexData();
+    case Exchange.Binance:
+      return BinanceData();
+  }
+}
+
+abstract class ExchData {
+  Future<List<Market>> markets();
+  String interval(MarketInterval int);
+  Future<List<CandleData>> candles(String exchangeId, MarketInterval int);
+}
+
+class BitfinexData implements ExchData {
+  // https://docs.bitfinex.com
+  final String _baseUrl = 'https://api-pub.bitfinex.com/v2/';
+
+  Future<dynamic> _get(String url) async {
+    var body = await httpGet('$_baseUrl$url');
+    if (body != null) return jsonDecode(body);
+    return null;
   }
 
+  @override
   Future<List<Market>> markets() async {
     List<Market> markets = [];
-    var body = await _get('tickers?symbols=ALL');
-    if (body != null) {
-      var json = jsonDecode(body);
+    var json = await _get('tickers?symbols=ALL');
+    if (json != null) {
       for (var item in json) {
         var exchangeId = item[0];
         if (exchangeId[0] != 't') continue;
@@ -80,12 +125,29 @@ class CoinData {
     return markets;
   }
 
-  Future<List<CandleData>> candles(String exchangeId, String interval) async {
+  @override
+  String interval(MarketInterval int) {
+    switch (int) {
+      case MarketInterval._5m:
+        return '5m';
+      case MarketInterval._1h:
+        return '1h';
+      case MarketInterval._1d:
+        return '1D';
+      case MarketInterval._1w:
+        return '1W';
+      case MarketInterval._1M:
+        return '1M';
+    }
+  }
+
+  @override
+  Future<List<CandleData>> candles(
+      String exchangeId, MarketInterval int) async {
     List<CandleData> data = [];
-    var body =
-        await _get('candles/trade:$interval:$exchangeId/hist?limit=10000&sort=-1');
-    if (body != null) {
-      var json = jsonDecode(body);
+    var json = await _get(
+        'candles/trade:${interval(int)}:$exchangeId/hist?limit=1000&sort=-1');
+    if (json != null) {
       for (var item in json) {
         var candle = CandleData(
             timestamp: item[0],
@@ -95,6 +157,70 @@ class CoinData {
             low: item[4].toDouble(),
             volume: item[5].toDouble());
         data.insert(0, candle);
+      }
+    }
+    return data;
+  }
+}
+
+class BinanceData implements ExchData {
+  // https://binance-docs.github.io/apidocs
+  final String _baseUrl = 'https://api.binance.com/api/v3/';
+
+  Future<dynamic> _get(String url) async {
+    var body = await httpGet('$_baseUrl$url');
+    if (body != null) return jsonDecode(body);
+    return null;
+  }
+
+  @override
+  Future<List<Market>> markets() async {
+    List<Market> markets = [];
+    var json = await _get('exchangeInfo');
+    if (json != null) {
+      for (var item in json['symbols']) {
+        var exchangeId = item['symbol'];
+        String baseAsset = item['baseAsset'];
+        String quoteAsset = item['quoteAsset'];
+        var market = Market(exchangeId, baseAsset, quoteAsset);
+        if (market.supported()) markets.add(market);
+      }
+    }
+    return markets;
+  }
+
+  @override
+  String interval(MarketInterval int) {
+    switch (int) {
+      case MarketInterval._5m:
+        return '5m';
+      case MarketInterval._1h:
+        return '1h';
+      case MarketInterval._1d:
+        return '1d';
+      case MarketInterval._1w:
+        return '1w';
+      case MarketInterval._1M:
+        return '1M';
+    }
+  }
+
+  @override
+  Future<List<CandleData>> candles(
+      String exchangeId, MarketInterval int) async {
+    List<CandleData> data = [];
+    var json = await _get(
+        'klines?symbol=$exchangeId&interval=${interval(int)}&limit=1000');
+    if (json != null) {
+      for (var item in json) {
+        var candle = CandleData(
+            timestamp: item[0],
+            open: double.parse(item[1]),
+            close: double.parse(item[4]),
+            high: double.parse(item[2]),
+            low: double.parse(item[3]),
+            volume: double.parse(item[5]));
+        data.add(candle);
       }
     }
     return data;
