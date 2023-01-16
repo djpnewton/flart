@@ -22,7 +22,7 @@ void main() {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   MyAppState createState() => MyAppState();
@@ -30,6 +30,33 @@ class MyApp extends StatefulWidget {
 
 class MyAppState extends State<MyApp> {
   bool _darkMode = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          brightness: _darkMode ? Brightness.dark : Brightness.light,
+        ),
+        home: Scaffold(
+            appBar: AppBar(title: const Text('Basic BTC Chart'), actions: [
+              IconButton(
+                icon: Icon(_darkMode ? Icons.dark_mode : Icons.light_mode),
+                onPressed: () => setState(() => _darkMode = !_darkMode),
+              ),
+            ]),
+            body: const HomePage()));
+  }
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  HomePageState createState() => HomePageState();
+}
+
+class HomePageState extends State<HomePage> {
   Exchange _exch = Exchange.Bitfinex;
   ExchData _exchData = createExchData(Exchange.Bitfinex);
   List<Market> _markets = [];
@@ -101,34 +128,24 @@ class MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          brightness: _darkMode ? Brightness.dark : Brightness.light,
-        ),
-        home: Scaffold(
-          appBar: AppBar(title: const Text('Basic BTC Chart'), actions: [
-            IconButton(
-              icon: Icon(_darkMode ? Icons.dark_mode : Icons.light_mode),
-              onPressed: () => setState(() => _darkMode = !_darkMode),
-            ),
-          ]),
-          body: Column(children: [
-            _makeControls(),
-            _retreivingData
-                ? const Center(child: CircularProgressIndicator())
-                : _haveData
-                    ? Expanded(
-                        child: Consumer<ChartModel>(
-                            builder: (context, model, child) => Chart(model)))
-                    : const Text('no data to show')
-          ]),
-        ));
+    return Column(children: [
+      _makeControls(),
+      _retreivingData
+          ? const Center(child: CircularProgressIndicator())
+          : _haveData
+              ? Expanded(
+                  child: Consumer<ChartModel>(
+                      builder: (context, model, child) => Chart(model)))
+              : const Text('no data to show')
+    ]);
   }
 
   void _exchChange(Exchange? exch) {
     if (exch == null) return;
     setState(() {
+      _markets = [];
+      _retreivingData = true;
+      _haveData = false;
       _exch = exch;
       _exchData = createExchData(exch);
       _initMarkets();
@@ -137,9 +154,13 @@ class MyAppState extends State<MyApp> {
 
   void _initMarkets() {
     _exchData.markets().then((value) {
-      setState(() => _markets = value);
-      if (value.isNotEmpty) {
-        _setMarket(value[0]);
+      if (value.err == null) {
+        setState(() => _markets = value.markets);
+        if (value.markets.isNotEmpty) _setMarket(value.markets[0]);
+      } else {
+        var snackBar =
+            SnackBar(content: Text('Unable to get markets! - ${value.err}'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
       }
     });
   }
@@ -174,15 +195,21 @@ class MyAppState extends State<MyApp> {
     log.info('get data for ${market.symbol} $interval, req id: $reqId..');
     setState(() => _retreivingData = true);
     _exchData.candles(market.exchangeId, interval).then((value) {
-      log.info('got data for ${market.symbol} $interval, req id: $reqId');
-      if (_requestId > reqId) return;
-      var model = context.read<ChartModel>();
-      model.updateData(value);
-      _updateMa200();
-      setState(() {
-        _retreivingData = false;
-        _haveData = true;
-      });
+      if (value.err == null) {
+        log.info('got data for ${market.symbol} $interval, req id: $reqId');
+        if (_requestId > reqId) return;
+        var model = context.read<ChartModel>();
+        model.updateData(value.candles);
+        _updateMa200();
+        setState(() {
+          _retreivingData = false;
+          _haveData = true;
+        });
+      } else {
+        var snackBar =
+            SnackBar(content: Text('Unable to get candles! - ${value.err}'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }
     });
   }
 
