@@ -2,7 +2,6 @@
 
 import 'dart:convert';
 import 'package:flart/config.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:interactive_chart/interactive_chart.dart';
 import 'package:logging/logging.dart';
@@ -24,17 +23,20 @@ final supportedMarkets = [
   'ZEC-BTC',
   'XMR-USD',
   'XMR-USDT',
-  'XMR-BTC'
+  'XMR-BTC',
+  'BCH-USD',
+  'BCH-USDT',
+  'BCH-BTC',
 ];
 
 enum Exchange { Bitfinex, Binance }
 
 enum MarketInterval {
-  _5m,
-  _1h,
-  _1d,
-  _1w,
-  _1M;
+  i5m,
+  i1h,
+  i1d,
+  i1w,
+  i1M;
 }
 
 class Market {
@@ -145,15 +147,15 @@ class BitfinexData implements ExchData {
   @override
   String interval(MarketInterval int) {
     switch (int) {
-      case MarketInterval._5m:
+      case MarketInterval.i5m:
         return '5m';
-      case MarketInterval._1h:
+      case MarketInterval.i1h:
         return '1h';
-      case MarketInterval._1d:
+      case MarketInterval.i1d:
         return '1D';
-      case MarketInterval._1w:
+      case MarketInterval.i1w:
         return '1W';
-      case MarketInterval._1M:
+      case MarketInterval.i1M:
         return '1M';
     }
   }
@@ -206,15 +208,15 @@ class BinanceData implements ExchData {
   @override
   String interval(MarketInterval int) {
     switch (int) {
-      case MarketInterval._5m:
+      case MarketInterval.i5m:
         return '5m';
-      case MarketInterval._1h:
+      case MarketInterval.i1h:
         return '1h';
-      case MarketInterval._1d:
+      case MarketInterval.i1d:
         return '1d';
-      case MarketInterval._1w:
+      case MarketInterval.i1w:
         return '1w';
-      case MarketInterval._1M:
+      case MarketInterval.i1M:
         return '1M';
     }
   }
