@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:interactive_chart/interactive_chart.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'chart.dart';
 import 'chart_page.dart';
@@ -26,10 +27,9 @@ class OverviewPage extends StatefulWidget {
 class OverviewPageState extends State<OverviewPage> {
   Exchange _exch = Exchange.Bitfinex;
   ExchData _exchData = createExchData(Exchange.Bitfinex);
-  List<Market> _markets = [];
-  Map<String, List<CandleData>> _candles = {};
+  List<ExchMarket> _exchMarkets = [];
+  List<MarketOverview> _markets = [];
   bool _retreivingData = false;
-  int _requestId = 0;
 
   final interval = MarketInterval.i1h;
 
@@ -42,6 +42,8 @@ class OverviewPageState extends State<OverviewPage> {
   Widget _makeControls() {
     return Row(children: [
       const SizedBox(width: 10),
+      IconButton(onPressed: _refreshData, icon: const Icon(Icons.refresh)),
+      const SizedBox(width: 10),
       DropdownButton<Exchange>(
           items: Exchange.values
               .map((e) =>
@@ -49,8 +51,6 @@ class OverviewPageState extends State<OverviewPage> {
               .toList(),
           value: _exch,
           onChanged: _exchChange),
-      const SizedBox(width: 10),
-      IconButton(onPressed: _refreshData, icon: const Icon(Icons.refresh))
     ]);
   }
 
@@ -73,8 +73,8 @@ class OverviewPageState extends State<OverviewPage> {
           : _markets.isNotEmpty
               ? Column(
                   children: _markets
-                      .map((e) => OverviewWidget(
-                          e, interval, _candles[e.exchangeId], _marketDetail))
+                      .map((e) =>
+                          OverviewWidget(null, null, null, e, _marketDetailTap))
                       .toList())
               : const Text('no data to show')
     ]));
@@ -83,58 +83,63 @@ class OverviewPageState extends State<OverviewPage> {
   void _exchChange(Exchange? exch) {
     if (exch == null) return;
     setState(() {
-      _markets = [];
-      _retreivingData = true;
+      _exchMarkets = [];
       _exch = exch;
       _exchData = createExchData(exch);
-      _initMarkets();
     });
   }
 
   void _initMarkets() {
-    _exchData.markets().then((value) {
+    marketOverview('usd').then((value) {
       if (value.err == null) {
         setState(() {
           _markets = value.markets;
-          _candles.clear();
           _retreivingData = false;
         });
-        for (var market in value.markets) {
-          _updateMarket(market);
+      } else {
+        var snackBar = SnackBar(
+            content: Text('Unable to get market overview - ${value.err}'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }
+    });
+  }
+
+  void _marketDetailShow(String baseAsset, String quoteAsset) {
+    for (var market in _exchMarkets) {
+      if (market.baseAsset == baseAsset &&
+          (market.quoteAsset == quoteAsset ||
+              market.quoteAsset == 'USDT' && quoteAsset == 'USD')) {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => ChangeNotifierProvider(
+                    create: (context) => CandleChartModel(),
+                    child: BasicScreen(ChartPage(_exch, market),
+                        title: 'Chart Detail'))));
+        return;
+      }
+    }
+    var snackBar = SnackBar(
+        content:
+            Text('Unable find $baseAsset-$quoteAsset market on ${_exch.name}'));
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  void _marketDetailTap(String baseAsset, String quoteAsset) {
+    if (_exchMarkets.isEmpty) {
+      _exchData.markets().then((value) {
+        if (value.err == null) {
+          _exchMarkets = value.markets;
+          _marketDetailShow(baseAsset, quoteAsset);
+        } else {
+          var snackBar = SnackBar(
+              content: Text('Unable to get exchange markets! - ${value.err}'));
+          ScaffoldMessenger.of(context).showSnackBar(snackBar);
         }
-      } else {
-        var snackBar =
-            SnackBar(content: Text('Unable to get markets! - ${value.err}'));
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      }
-    });
-  }
-
-  void _updateMarket(Market market) {
-    _requestId += 1;
-    var reqId = _requestId;
-    log.info('get data for ${market.symbol} $interval, req id: $reqId..');
-    _exchData.candles(market.exchangeId, interval).then((value) {
-      if (value.err == null) {
-        log.info('got data for ${market.symbol} $interval, req id: $reqId');
-        _candles[market.exchangeId] = value.candles;
-        setState(() => _candles = _candles);
-      } else {
-        var snackBar =
-            SnackBar(content: Text('Unable to get candles! - ${value.err}'));
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      }
-    });
-  }
-
-  void _marketDetail(Market market) {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => ChangeNotifierProvider(
-                create: (context) => CandleChartModel(),
-                child: BasicScreen(ChartPage(_exch, market),
-                    title: 'Chart Detail'))));
+      });
+    } else {
+      _marketDetailShow(baseAsset, quoteAsset);
+    }
   }
 
   void _refreshData() {
@@ -144,52 +149,90 @@ class OverviewPageState extends State<OverviewPage> {
 }
 
 class OverviewWidget extends StatefulWidget {
-  final Market market;
-  final MarketInterval interval;
+  final ExchMarket? market;
+  final MarketInterval? interval;
   final List<CandleData>? candles1h;
-  final Function(Market market) onMarketClick;
+  final MarketOverview? overview;
+  final Function(String baseAsset, String quoteAsset) onMarketClick;
 
-  const OverviewWidget(
-      this.market, this.interval, this.candles1h, this.onMarketClick,
+  const OverviewWidget(this.market, this.interval, this.candles1h,
+      this.overview, this.onMarketClick,
       {super.key});
+  factory OverviewWidget.exchMarket(
+      ExchMarket market,
+      MarketInterval interval,
+      List<CandleData>? candles1h,
+      Function(String baseAsset, String quoteAsset) onMarketClick) {
+    return OverviewWidget(market, interval, candles1h, null, onMarketClick);
+  }
+  factory OverviewWidget.marketOverview(MarketOverview market,
+      Function(String baseAsset, String quoteAsset) onMarketClick) {
+    return OverviewWidget(null, null, null, market, onMarketClick);
+  }
 
   @override
   OverviewWidgetState createState() => OverviewWidgetState();
 }
 
 class OverviewWidgetState extends State<OverviewWidget> {
+  String _baseAsset = '';
+  String _quoteAsset = '';
+  double _price = 0;
+  double _change1h = 0;
+  double _change24h = 0;
+  double _change7d = 0;
+  List<double?> _sparkline7d = [];
+
   @override
   void initState() {
     super.initState();
+
+    if (widget.market != null) {
+      _baseAsset = widget.market!.baseAsset;
+      _quoteAsset = widget.market!.quoteAsset;
+      if (widget.candles1h != null) {
+        _price = widget.candles1h!.last.close!;
+        _sparkline7d = widget.candles1h!
+            .skip(_sparkCandleIndex(widget.candles1h!))
+            .map((e) => e.close)
+            .toList();
+        _change1h = _percentChange(1, widget.candles1h!);
+        _change24h = _percentChange(24, widget.candles1h!);
+        _change7d = _percentChange(168, widget.candles1h!);
+      }
+    } else if (widget.overview != null) {
+      _baseAsset = widget.overview!.baseAsset;
+      _quoteAsset = widget.overview!.quoteAsset;
+      _price = widget.overview!.price;
+      _sparkline7d = widget.overview!.sparkline7d;
+      _change1h = widget.overview!.change1h;
+      _change24h = widget.overview!.change24h;
+      _change7d = widget.overview!.change7d;
+    }
   }
 
-  int _sparkCandleIndex() {
+  int _sparkCandleIndex(List<CandleData> candles1h) {
     // get the last week of data
     const hoursInWeek = 168;
-    if (widget.candles1h == null) return 0;
-    if (widget.candles1h!.length <= hoursInWeek) return 0;
-    return widget.candles1h!.length - hoursInWeek;
+    if (candles1h.length <= hoursInWeek) return 0;
+    return candles1h.length - hoursInWeek;
   }
 
-  double _percentChange(int startIndex) {
-    if (widget.candles1h == null || widget.candles1h!.isEmpty) return 0;
-    var start = widget.candles1h![startIndex].close;
-    var end = widget.candles1h![widget.candles1h!.length - 1].close;
+  double _percentChange(int numPeriods, List<CandleData> candles1h) {
+    var startIndex = candles1h.length - 1 - numPeriods;
+    var start = candles1h[startIndex].close;
+    var end = candles1h[candles1h.length - 1].close;
     if (start == null || end == null) return 0;
     var diff = end - start;
     var avg = (start + end) / 2;
     return (diff / avg) * 100;
   }
 
-  Widget _changeIndicator(int numPeriods) {
-    var startIndex = widget.candles1h == null
-        ? 0
-        : widget.candles1h!.length - 1 - numPeriods;
+  Widget _changeIndicator(double changePercent) {
     var upArrow = '▲';
     var downArrow = '▼';
-    var change = _percentChange(startIndex);
-    var changeStr = change.toStringAsFixed(2);
-    if (change >= 0) {
+    var changeStr = changePercent.toStringAsFixed(2);
+    if (changePercent >= 0) {
       return Text('$upArrow$changeStr%',
           style: const TextStyle(color: Colors.green));
     } else {
@@ -203,21 +246,27 @@ class OverviewWidgetState extends State<OverviewWidget> {
     const sparkColor = Colors.blue;
     var rowWidgets = [
       cell(TextButton(
-          child: Text(widget.market.symbol()),
-          onPressed: () => widget.onMarketClick(widget.market)))
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _baseAsset.isNotEmpty
+                ? SvgPicture.network(svgUrl(_baseAsset.toLowerCase()),
+                    placeholderBuilder: (context) =>
+                        Image.asset('images/coin.png', width: 35, height: 35))
+                : const SizedBox(),
+            const SizedBox(width: 5),
+            Text(_baseAsset)
+          ]),
+          onPressed: () => widget.onMarketClick(_baseAsset, _quoteAsset)))
     ];
-    if (widget.candles1h != null) {
+    if (_sparkline7d.isNotEmpty) {
       rowWidgets.add(cell(SizedBox(
           width: 100,
           height: 30,
-          child: CustomPaint(
-              painter: SparkPainter(widget.interval, widget.candles1h!,
-                  _sparkCandleIndex(), sparkColor)))));
-      rowWidgets.add(cell(
-          Text('${widget.candles1h?.last.close} ${widget.market.quoteAsset}')));
-      rowWidgets.add(cell(_changeIndicator(1))); // 1h
-      rowWidgets.add(cell(_changeIndicator(24))); // 1d
-      rowWidgets.add(cell(_changeIndicator(168))); // 1w
+          child:
+              CustomPaint(painter: SparkPainter(_sparkline7d, sparkColor)))));
+      rowWidgets.add(cell(Text('$_price $_quoteAsset')));
+      rowWidgets.add(cell(_changeIndicator(_change1h)));
+      rowWidgets.add(cell(_changeIndicator(_change24h)));
+      rowWidgets.add(cell(_changeIndicator(_change7d)));
     } else {
       rowWidgets.add(cell(const CircularProgressIndicator()));
       rowWidgets.add(cell(null));
