@@ -9,7 +9,7 @@ final log = Logger('chart_page');
 
 class ChartPage extends StatefulWidget {
   final Exchange exch;
-  final Market market;
+  final ExchMarket market;
 
   const ChartPage(this.exch, this.market, {super.key});
 
@@ -20,8 +20,8 @@ class ChartPage extends StatefulWidget {
 class ChartPageState extends State<ChartPage> {
   Exchange _exch = Exchange.Bitfinex;
   ExchData _exchData = createExchData(Exchange.Bitfinex);
-  List<Market> _markets = [];
-  Market _market = Market.empty();
+  List<ExchMarket> _markets = [];
+  ExchMarket _market = ExchMarket.empty();
   bool _showMa200 = false;
   List<bool> _selectedInterval = [false, false, true, false, false];
   bool _haveData = false;
@@ -31,8 +31,9 @@ class ChartPageState extends State<ChartPage> {
   @override
   void initState() {
     _exch = widget.exch;
+    _exchData = createExchData(widget.exch);
     _market = widget.market;
-    _initMarkets();
+    _initMarkets(chosenMarket: _market);
     super.initState();
   }
 
@@ -119,11 +120,15 @@ class ChartPageState extends State<ChartPage> {
     });
   }
 
-  void _initMarkets() {
+  void _initMarkets({ExchMarket? chosenMarket}) {
     _exchData.markets().then((value) {
       if (value.err == null) {
         setState(() => _markets = value.markets);
-        if (value.markets.isNotEmpty) _setMarket(value.markets[0]);
+        if (chosenMarket == null) {
+          if (value.markets.isNotEmpty) _setMarket(value.markets[0]);
+        } else {
+          _setMarket(chosenMarket);
+        }
       } else {
         var snackBar =
             SnackBar(content: Text('Unable to get markets! - ${value.err}'));
@@ -132,7 +137,7 @@ class ChartPageState extends State<ChartPage> {
     });
   }
 
-  void _setMarket(Market market) {
+  void _setMarket(ExchMarket market) {
     setState(() => _market = market);
     _updateCandles(market, _interval());
   }
@@ -156,7 +161,7 @@ class ChartPageState extends State<ChartPage> {
     return MarketInterval.values[0];
   }
 
-  void _updateCandles(Market market, MarketInterval interval) {
+  void _updateCandles(ExchMarket market, MarketInterval interval) {
     _requestId += 1;
     var reqId = _requestId;
     log.info('get data for ${market.symbol} $interval, req id: $reqId..');

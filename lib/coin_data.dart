@@ -39,11 +39,84 @@ enum MarketInterval {
   i1M;
 }
 
-class Market {
+String svgUrl(String coinSymbol) {
+  return 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@1a63530be6e374711a8554f31b17e4cb92c25fa5/svg/color/$coinSymbol.svg';
+}
+
+class MarketOverview {
+  String name;
+  String baseAsset;
+  String quoteAsset;
+  double price;
+  double marketCap;
+  int marketCapRank;
+  double high24h;
+  double low24h;
+  double circulatingSupply;
+  double change1h;
+  double change24h;
+  double change7d;
+  List<double> sparkline7d;
+
+  MarketOverview(
+      this.name,
+      this.baseAsset,
+      this.quoteAsset,
+      this.price,
+      this.marketCap,
+      this.marketCapRank,
+      this.high24h,
+      this.low24h,
+      this.circulatingSupply,
+      this.change1h,
+      this.change24h,
+      this.change7d,
+      this.sparkline7d);
+}
+
+class MarketOverviewResult {
+  List<MarketOverview> markets;
+  String? err;
+  MarketOverviewResult(this.markets, {this.err});
+  factory MarketOverviewResult.err(String err) =>
+      MarketOverviewResult([], err: err);
+}
+
+Future<MarketOverviewResult> marketOverview(String vsCurrency) async {
+  var result = await httpGet(
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=${vsCurrency.toLowerCase()}&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=1h%2C24h%2C7d');
+  if (result.err != null) return MarketOverviewResult.err(result.err!);
+  var json = jsonDecode(result.body);
+  List<MarketOverview> markets = [];
+  for (var item in json) {
+    var sparkline = <double>[];
+    for (var val in item['sparkline_in_7d']['price']) {
+      sparkline.add(val);
+    }
+    var market = MarketOverview(
+        item['name'],
+        (item['symbol'] as String).toUpperCase(),
+        vsCurrency.toUpperCase(),
+        item['current_price'].toDouble(),
+        item['market_cap'].toDouble(),
+        item['market_cap_rank'],
+        item['high_24h'].toDouble(),
+        item['low_24h'].toDouble(),
+        item['circulating_supply'].toDouble(),
+        item['price_change_percentage_1h_in_currency'],
+        item['price_change_percentage_24h_in_currency'],
+        item['price_change_percentage_7d_in_currency'],
+        sparkline);
+    markets.add(market);
+  }
+  return MarketOverviewResult(markets);
+}
+
+class ExchMarket {
   final String exchangeId;
   final String baseAsset;
   final String quoteAsset;
-  Market(this.exchangeId, this.baseAsset, this.quoteAsset);
+  ExchMarket(this.exchangeId, this.baseAsset, this.quoteAsset);
 
   String symbol() {
     return '$baseAsset-$quoteAsset';
@@ -53,7 +126,7 @@ class Market {
     return supportedMarkets.contains(symbol());
   }
 
-  factory Market.empty() => Market('', '', '');
+  factory ExchMarket.empty() => ExchMarket('', '', '');
 }
 
 class HttpGetResult {
@@ -90,11 +163,11 @@ ExchData createExchData(Exchange exch) {
   }
 }
 
-class MarketsResult {
-  List<Market> markets;
+class ExchMarketsResult {
+  List<ExchMarket> markets;
   String? err;
-  MarketsResult(this.markets, {this.err});
-  factory MarketsResult.err(String err) => MarketsResult([], err: err);
+  ExchMarketsResult(this.markets, {this.err});
+  factory ExchMarketsResult.err(String err) => ExchMarketsResult([], err: err);
 }
 
 class CandlesResult {
@@ -105,7 +178,7 @@ class CandlesResult {
 }
 
 abstract class ExchData {
-  Future<MarketsResult> markets();
+  Future<ExchMarketsResult> markets();
   String interval(MarketInterval int);
   Future<CandlesResult> candles(String exchangeId, MarketInterval int);
 }
@@ -119,11 +192,11 @@ class BitfinexData implements ExchData {
   }
 
   @override
-  Future<MarketsResult> markets() async {
+  Future<ExchMarketsResult> markets() async {
     var result = await _get('tickers?symbols=ALL');
-    if (result.err != null) return MarketsResult.err(result.err!);
+    if (result.err != null) return ExchMarketsResult.err(result.err!);
     var json = jsonDecode(result.body);
-    List<Market> markets = [];
+    List<ExchMarket> markets = [];
     for (var item in json) {
       var exchangeId = item[0];
       if (exchangeId[0] != 't') continue;
@@ -138,10 +211,10 @@ class BitfinexData implements ExchData {
         baseAsset = parts[0];
         quoteAsset = parts[1];
       }
-      var market = Market(exchangeId, baseAsset, quoteAsset);
+      var market = ExchMarket(exchangeId, baseAsset, quoteAsset);
       if (market.supported()) markets.add(market);
     }
-    return MarketsResult(markets);
+    return ExchMarketsResult(markets);
   }
 
   @override
@@ -190,19 +263,19 @@ class BinanceData implements ExchData {
   }
 
   @override
-  Future<MarketsResult> markets() async {
+  Future<ExchMarketsResult> markets() async {
     var result = await _get('exchangeInfo');
-    if (result.err != null) return MarketsResult.err(result.err!);
+    if (result.err != null) return ExchMarketsResult.err(result.err!);
     var json = jsonDecode(result.body);
-    List<Market> markets = [];
+    List<ExchMarket> markets = [];
     for (var item in json['symbols']) {
       var exchangeId = item['symbol'];
       String baseAsset = item['baseAsset'];
       String quoteAsset = item['quoteAsset'];
-      var market = Market(exchangeId, baseAsset, quoteAsset);
+      var market = ExchMarket(exchangeId, baseAsset, quoteAsset);
       if (market.supported()) markets.add(market);
     }
-    return MarketsResult(markets);
+    return ExchMarketsResult(markets);
   }
 
   @override

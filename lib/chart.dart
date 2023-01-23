@@ -3,7 +3,6 @@ import 'package:interactive_chart/interactive_chart.dart';
 import 'package:logging/logging.dart';
 
 import 'mock_data.dart';
-import 'coin_data.dart';
 
 final log = Logger('chart');
 
@@ -49,12 +48,10 @@ class CandleChart extends StatelessWidget {
 }
 
 class SparkPainter extends CustomPainter {
-  final MarketInterval interval;
-  final List<CandleData> candles;
-  final int startIndex;
+  final List<double?> values;
   final Color color;
 
-  SparkPainter(this.interval, this.candles, this.startIndex, this.color);
+  SparkPainter(this.values, this.color);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -63,23 +60,23 @@ class SparkPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..color = color;
-    var xInc = size.width / (candles.length - startIndex);
+    var xInc = size.width / values.length;
     var xCur = 0.0;
     var yMin = 999999999999999999.0;
     var yMax = 0.0;
-    for (var i = startIndex; i < candles.length; i++) {
-      var c = candles[i];
-      if (c.close != null) {
-        if (yMax < c.close!) yMax = c.close!;
-        if (yMin > c.close!) yMin = c.close!;
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      if (v != null) {
+        if (yMax < v) yMax = v;
+        if (yMin > v) yMin = v;
       }
     }
     var yRange = yMax - yMin;
     double? yCur;
-    for (var i = startIndex; i < candles.length - 1; i++) {
-      var c = candles[i];
-      if (c.close != null) {
-        var closeNormalized = c.close! - yMin;
+    for (var i = 0; i < values.length - 1; i++) {
+      var v = values[i];
+      if (v != null) {
+        var closeNormalized = v - yMin;
         if (yCur == null) {
           yCur = size.height - closeNormalized / yRange * size.height;
           canvas.drawCircle(
@@ -92,7 +89,7 @@ class SparkPainter extends CustomPainter {
         }
       }
       xCur += xInc;
-      if (i == candles.length - 2 && yCur != null) {
+      if (i == values.length - 2 && yCur != null) {
         canvas.drawCircle(
             Offset(xCur, yCur), 3, paint..style = PaintingStyle.fill);
       }
