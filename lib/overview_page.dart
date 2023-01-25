@@ -3,6 +3,7 @@ import 'package:interactive_chart/interactive_chart.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
 
 import 'chart.dart';
 import 'chart_page.dart';
@@ -10,7 +11,7 @@ import 'coin_data.dart';
 import 'widgets.dart';
 
 final log = Logger('overview_page');
-const cellSize = 200.0;
+const cellSize = 140.0;
 
 Widget cell(Widget? child) {
   return SizedBox(
@@ -25,11 +26,13 @@ class OverviewPage extends StatefulWidget {
 }
 
 class OverviewPageState extends State<OverviewPage> {
+  String _quoteAsset = quoteAssets.first;
   Exchange _exch = Exchange.Bitfinex;
   ExchData _exchData = createExchData(Exchange.Bitfinex);
   List<ExchMarket> _exchMarkets = [];
   List<MarketOverview> _markets = [];
   bool _retreivingData = false;
+  String _searchAsset = '';
 
   final interval = MarketInterval.i1h;
 
@@ -42,8 +45,20 @@ class OverviewPageState extends State<OverviewPage> {
   Widget _makeControls() {
     return Row(children: [
       const SizedBox(width: 10),
+      const Text('Refresh: '),
       IconButton(onPressed: _refreshData, icon: const Icon(Icons.refresh)),
-      const SizedBox(width: 10),
+      const SizedBox(width: 20),
+      const Text('Quote asset: '),
+      DropdownButton<String>(
+          items: quoteAssets
+              .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+              .toList(),
+          value: _quoteAsset,
+          onChanged: _quoteAssetChange),
+      const SizedBox(width: 20),
+      SearchInput(_search),
+      const SizedBox(width: 20),
+      const Text('Show detail using: '),
       DropdownButton<Exchange>(
           items: Exchange.values
               .map((e) =>
@@ -52,6 +67,21 @@ class OverviewPageState extends State<OverviewPage> {
           value: _exch,
           onChanged: _exchChange),
     ]);
+  }
+
+  List<Widget> _overviewRows() {
+    if (_searchAsset.isEmpty) {
+      return _markets
+          .map((e) => OverviewWidget(null, null, null, e, _marketDetailTap))
+          .toList();
+    }
+    // TODO: figure out why the wrong wigets get rendered when a search filter is set
+    var filteredMarkets = _markets.where((e) =>
+        e.baseAsset.toUpperCase().startsWith(_searchAsset.toUpperCase()));
+    var widgets = filteredMarkets
+        .map((e) => OverviewWidget(null, null, null, e, _marketDetailTap))
+        .toList();
+    return widgets;
   }
 
   @override
@@ -63,6 +93,7 @@ class OverviewPageState extends State<OverviewPage> {
       Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
         cell(Text('Market', style: ts)),
         cell(Text('Last 7 days', style: ts)),
+        cell(Text('Market Cap', style: ts)),
         cell(Text('Price', style: ts)),
         cell(Text('1h %', style: ts)),
         cell(Text('1d %', style: ts)),
@@ -71,13 +102,23 @@ class OverviewPageState extends State<OverviewPage> {
       _retreivingData
           ? const Center(child: CircularProgressIndicator())
           : _markets.isNotEmpty
-              ? Column(
-                  children: _markets
-                      .map((e) =>
-                          OverviewWidget(null, null, null, e, _marketDetailTap))
-                      .toList())
+              ? Column(children: _overviewRows())
               : const Text('no data to show')
     ]));
+  }
+
+  void _quoteAssetChange(String? asset) {
+    if (asset == null) return;
+    setState(() {
+      _quoteAsset = asset;
+      _markets = [];
+      _retreivingData = true;
+      _initMarkets();
+    });
+  }
+
+  void _search(String value) {
+    setState(() => _searchAsset = value);
   }
 
   void _exchChange(Exchange? exch) {
@@ -90,7 +131,7 @@ class OverviewPageState extends State<OverviewPage> {
   }
 
   void _initMarkets() {
-    marketOverview('usd').then((value) {
+    marketOverview(_quoteAsset).then((value) {
       if (value.err == null) {
         setState(() {
           _markets = value.markets;
@@ -178,6 +219,8 @@ class OverviewWidgetState extends State<OverviewWidget> {
   String _baseAsset = '';
   String _quoteAsset = '';
   double _price = 0;
+  double _marketCap = 0;
+  final NumberFormat _nfc = NumberFormat.compact();
   double _change1h = 0;
   double _change24h = 0;
   double _change7d = 0;
@@ -204,6 +247,7 @@ class OverviewWidgetState extends State<OverviewWidget> {
       _baseAsset = widget.overview!.baseAsset;
       _quoteAsset = widget.overview!.quoteAsset;
       _price = widget.overview!.price;
+      _marketCap = widget.overview!.marketCap;
       _sparkline7d = widget.overview!.sparkline7d;
       _change1h = widget.overview!.change1h;
       _change24h = widget.overview!.change24h;
@@ -246,13 +290,13 @@ class OverviewWidgetState extends State<OverviewWidget> {
     const sparkColor = Colors.blue;
     var rowWidgets = [
       cell(TextButton(
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          child: Row(mainAxisAlignment: MainAxisAlignment.start, children: [
             _baseAsset.isNotEmpty
                 ? SvgPicture.network(svgUrl(_baseAsset.toLowerCase()),
                     placeholderBuilder: (context) =>
-                        Image.asset('images/coin.png', width: 35, height: 35))
+                        Image.asset('images/coin.png', width: 32, height: 32))
                 : const SizedBox(),
-            const SizedBox(width: 5),
+            const SizedBox(width: 10),
             Text(_baseAsset)
           ]),
           onPressed: () => widget.onMarketClick(_baseAsset, _quoteAsset)))
@@ -263,7 +307,8 @@ class OverviewWidgetState extends State<OverviewWidget> {
           height: 30,
           child:
               CustomPaint(painter: SparkPainter(_sparkline7d, sparkColor)))));
-      rowWidgets.add(cell(Text('$_price $_quoteAsset')));
+      rowWidgets.add(cell(Text('${_nfc.format(_marketCap)} $_quoteAsset')));
+      rowWidgets.add(cell(Text('${_price.toStringAsFixed(2)} $_quoteAsset')));
       rowWidgets.add(cell(_changeIndicator(_change1h)));
       rowWidgets.add(cell(_changeIndicator(_change24h)));
       rowWidgets.add(cell(_changeIndicator(_change7d)));
