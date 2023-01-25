@@ -9,6 +9,8 @@ import 'package:universal_platform/universal_platform.dart';
 
 final log = Logger('coin_data');
 
+final quoteAssets = ['USD', 'BTC', 'ETH'];
+
 final supportedMarkets = [
   'BTC-USD',
   'BTC-USDT',
@@ -84,7 +86,7 @@ class MarketOverviewResult {
 
 Future<MarketOverviewResult> marketOverview(String vsCurrency) async {
   var result = await httpGet(
-      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=${vsCurrency.toLowerCase()}&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=1h%2C24h%2C7d');
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=${vsCurrency.toLowerCase()}&order=market_cap_desc&per_page=150&page=1&sparkline=true&price_change_percentage=1h%2C24h%2C7d');
   if (result.err != null) return MarketOverviewResult.err(result.err!);
   var json = jsonDecode(result.body);
   List<MarketOverview> markets = [];
