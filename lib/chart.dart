@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:interactive_chart/interactive_chart.dart';
 import 'package:logging/logging.dart';
+import 'package:intl/intl.dart';
 
 import 'mock_data.dart';
 
@@ -8,8 +9,10 @@ final log = Logger('chart');
 
 class CandleChartModel extends ChangeNotifier {
   List<CandleData> _data = MockDataTesla.candles;
+  ChartStyle _chartStyle = const ChartStyle();
 
   List<CandleData> get data => _data;
+  ChartStyle get style => _chartStyle;
 
   updateData(List<CandleData> data) {
     _data = data;
@@ -19,10 +22,14 @@ class CandleChartModel extends ChangeNotifier {
 
   computeMa200() {
     final ma200 = CandleData.computeMA(_data, 200);
-
     for (int i = 0; i < _data.length; i++) {
       _data[i].trends = [ma200[i]];
     }
+    _chartStyle = ChartStyle(trendLineStyles: [
+      Paint()
+        ..strokeWidth = 2
+        ..color = Colors.blueGrey
+    ]);
 
     notifyListeners();
   }
@@ -43,7 +50,29 @@ class CandleChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveChart(candles: model.data);
+    return InteractiveChart(
+        candles: model.data, style: model.style, overlayInfo: _getOverlayInfo, onTap: _onTap);
+  }
+
+  Map<String, String> _getOverlayInfo(CandleData candle) {
+    final date = DateFormat.yMMMd()
+        .format(DateTime.fromMillisecondsSinceEpoch(candle.timestamp));
+    var data = {
+      'Date': date,
+      'Open': candle.open?.toStringAsFixed(2) ?? '-',
+      'High': candle.high?.toStringAsFixed(2) ?? '-',
+      'Low': candle.low?.toStringAsFixed(2) ?? '-',
+      'Close': candle.close?.toStringAsFixed(2) ?? '-',
+      'Volume': candle.volume?.asAbbreviated() ?? '-',
+    };
+    if (candle.trends.isNotEmpty) {
+      data['MA 200'] = candle.trends[0]?.toStringAsFixed(2) ?? '-';
+    }
+    return data;
+  }
+
+  void _onTap(CandleData candel, int candleIndex, double price) {
+    //blah!
   }
 }
 

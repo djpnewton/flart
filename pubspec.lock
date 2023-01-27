@@ -91,9 +91,11 @@ packages:
   interactive_chart:
     dependency: "direct main"
     description:
-      name: interactive_chart
-      url: "https://pub.dartlang.org"
-    source: hosted
+      path: "."
+      ref: onTap_extras
+      resolved-ref: bb98a515f68b18e05bce2aed30fc9f2f6d861797
+      url: "https://github.com/djpnewton/flutter-interactive-chart"
+    source: git
     version: "0.3.4"
   intl:
     dependency: "direct main"
