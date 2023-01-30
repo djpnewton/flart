@@ -188,7 +188,8 @@ class ChartPageState extends State<ChartPage> {
         log.info('got data for ${market.symbol} $interval, req id: $reqId');
         if (_requestId > reqId) return;
         var model = context.read<CandleChartModel>();
-        model.updateData(value.candles);
+        model.updateData(_exch.name, market.symbol(),
+            _exchData.interval(interval), value.candles);
         _updateMa200();
         setState(() {
           _retreivingData = false;

@@ -8,13 +8,23 @@ import 'mock_data.dart';
 final log = Logger('chart');
 
 class CandleChartModel extends ChangeNotifier {
+  final _ma200Color = Colors.blueGrey;
+
+  String _exchange = '';
+  String _market = '';
+  String _interval = '';
   List<CandleData> _data = MockDataTesla.candles;
   ChartStyle _chartStyle = const ChartStyle();
+  bool _ma200 = false;
 
   List<CandleData> get data => _data;
   ChartStyle get style => _chartStyle;
 
-  updateData(List<CandleData> data) {
+  updateData(
+      String exchange, String market, String interval, List<CandleData> data) {
+    _exchange = exchange;
+    _market = market;
+    _interval = interval;
     _data = data;
 
     notifyListeners();
@@ -28,8 +38,9 @@ class CandleChartModel extends ChangeNotifier {
     _chartStyle = ChartStyle(trendLineStyles: [
       Paint()
         ..strokeWidth = 2
-        ..color = Colors.blueGrey
+        ..color = _ma200Color
     ]);
+    _ma200 = true;
 
     notifyListeners();
   }
@@ -38,6 +49,7 @@ class CandleChartModel extends ChangeNotifier {
     for (final data in _data) {
       data.trends = [];
     }
+    _ma200 = false;
 
     notifyListeners();
   }
@@ -48,13 +60,39 @@ class CandleChart extends StatelessWidget {
 
   const CandleChart(this.model, {super.key});
 
+  Widget _buildTitleAndLegend() {
+    var title = Text('${model._exchange} ${model._market} ${model._interval}',
+        style: const TextStyle(fontSize: 18));
+    var legend = model._ma200
+        ? Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('MA 200'),
+            const SizedBox(width: 10),
+            SizedBox(
+                width: 30,
+                height: 30,
+                child: CustomPaint(painter: LegendPainter(model._ma200Color)))
+          ])
+        : const SizedBox();
+    return Container(
+        margin: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(5),
+        decoration: const BoxDecoration(color: Colors.black12),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, legend]));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return InteractiveChart(
-        candles: model.data,
-        style: model.style,
-        overlayInfo: _getOverlayInfo,
-        onTap: _onTap);
+    return Stack(children: [
+      InteractiveChart(
+          candles: model.data,
+          style: model.style,
+          overlayInfo: _getOverlayInfo,
+          onTap: _onTap),
+      _buildTitleAndLegend()
+    ]);
   }
 
   Map<String, String> _getOverlayInfo(CandleData candle) {
@@ -77,6 +115,25 @@ class CandleChart extends StatelessWidget {
   void _onTap(CandleData candel, int candleIndex, double price) {
     //blah!
   }
+}
+
+class LegendPainter extends CustomPainter {
+  final Color color;
+
+  LegendPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    var paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = color;
+    canvas.drawLine(
+        Offset(0, size.height / 2), Offset(size.width, size.height / 2), paint);
+  }
+
+  @override
+  bool shouldRepaint(SparkPainter oldDelegate) => false;
 }
 
 class SparkPainter extends CustomPainter {
