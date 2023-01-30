@@ -51,7 +51,10 @@ class CandleChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InteractiveChart(
-        candles: model.data, style: model.style, overlayInfo: _getOverlayInfo, onTap: _onTap);
+        candles: model.data,
+        style: model.style,
+        overlayInfo: _getOverlayInfo,
+        onTap: _onTap);
   }
 
   Map<String, String> _getOverlayInfo(CandleData candle) {

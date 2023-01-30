@@ -43,6 +43,9 @@ dependencies:
   universal_platform: ^1.0.0+1
   flutter_svg: ^1.1.6
   intl: ^0.17.0
+  super_clipboard: ^0.2.0
+  widgets_to_image: ^0.0.2
+  path_provider: ^2.0.12
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

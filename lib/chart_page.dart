@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
+import 'package:super_clipboard/super_clipboard.dart';
+import 'package:widgets_to_image/widgets_to_image.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import 'chart.dart';
 import 'coin_data.dart';
@@ -18,6 +22,7 @@ class ChartPage extends StatefulWidget {
 }
 
 class ChartPageState extends State<ChartPage> {
+  final WidgetsToImageController _imageController = WidgetsToImageController();
   Exchange _exch = Exchange.Bitfinex;
   ExchData _exchData = createExchData(Exchange.Bitfinex);
   List<ExchMarket> _markets = [];
@@ -90,7 +95,17 @@ class ChartPageState extends State<ChartPage> {
       const SizedBox(width: 10),
       _markets.isEmpty
           ? const SizedBox()
-          : IconButton(onPressed: _refreshData, icon: const Icon(Icons.refresh))
+          : IconButton(
+              onPressed: _refreshData, icon: const Icon(Icons.refresh)),
+      const SizedBox(width: 10),
+      _markets.isEmpty
+          ? const SizedBox()
+          : IconButton(
+              onPressed: _copyToClipboard, icon: const Icon(Icons.copy)),
+      const SizedBox(width: 10),
+      _markets.isEmpty
+          ? const SizedBox()
+          : IconButton(onPressed: _saveToDisk, icon: const Icon(Icons.save))
     ]);
   }
 
@@ -103,7 +118,9 @@ class ChartPageState extends State<ChartPage> {
           : _haveData
               ? Expanded(
                   child: Consumer<CandleChartModel>(
-                      builder: (context, model, child) => CandleChart(model)))
+                      builder: (context, model, child) => WidgetsToImage(
+                          controller: _imageController,
+                          child: CandleChart(model))))
               : const Text('no data to show')
     ]);
   }
@@ -202,5 +219,34 @@ class ChartPageState extends State<ChartPage> {
   void _refreshData() {
     setState(() => _retreivingData = false);
     _updateCandles(_market, _interval());
+  }
+
+  void _copyToClipboard() {
+    _imageController.capture().then((png) {
+      if (png == null) return;
+      final item = DataWriterItem(suggestedName: 'chart.png');
+      item.add(Formats.png(png));
+      ClipboardWriter.instance.write([item]).then((_) {
+        var snackBar =
+            const SnackBar(content: Text('Copied chart to clipboard'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    });
+  }
+
+  void _saveToDisk() {
+    _imageController.capture().then((png) {
+      if (png == null) return;
+      getDownloadsDirectory().then((dir) {
+        if (dir == null) return;
+        var now = DateTime.now();
+        var file = File(
+            '${dir.path}${Platform.pathSeparator}chart_${now.toIso8601String().replaceAll(':', '')}.png');
+        file.writeAsBytesSync(png);
+        var snackBar =
+            SnackBar(content: Text('Saved chart to disk - ${file.path}'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    });
   }
 }
