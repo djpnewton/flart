@@ -131,10 +131,11 @@ packages:
   interactive_chart:
     dependency: "direct main"
     description:
-      name: interactive_chart
-      sha256: "796fcac9398219ae2d0946d4696b7cb04aa74a3f37eaafe04d62f45e9c06ea48"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: onTap_extras
+      resolved-ref: bb98a515f68b18e05bce2aed30fc9f2f6d861797
+      url: "https://github.com/djpnewton/flutter-interactive-chart"
+    source: git
     version: "0.3.4"
   intl:
     dependency: "direct main"
