@@ -16,7 +16,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-  ::OleInitialize(nullptr); //TODO: not needed with https://github.com/superlistapp/super_native_extensions/pull/51
 
   flutter::DartProject project(L"data");
 
@@ -39,7 +38,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
-  ::OleInitialize(nullptr); //TODO: not needed with https://github.com/superlistapp/super_native_extensions/pull/51
   ::CoUninitialize();
   return EXIT_SUCCESS;
 }
