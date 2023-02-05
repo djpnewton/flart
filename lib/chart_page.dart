@@ -43,70 +43,67 @@ class ChartPageState extends State<ChartPage> {
   }
 
   Widget _makeControls() {
-    return Row(children: [
-      const SizedBox(width: 10),
-      DropdownButton<Exchange>(
-          items: Exchange.values
-              .map((e) =>
-                  DropdownMenuItem<Exchange>(value: e, child: Text(e.name)))
-              .toList(),
-          value: _exch,
-          onChanged: _exchChange),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : DropdownButton<String>(
-              items: _markets
-                  .map((e) => DropdownMenuItem<String>(
-                      value: e.exchangeId, child: Text(e.symbol())))
+    return Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          DropdownButton<Exchange>(
+              items: Exchange.values
+                  .map((e) =>
+                      DropdownMenuItem<Exchange>(value: e, child: Text(e.name)))
                   .toList(),
-              value: _market.exchangeId,
-              onChanged: _marketChange),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : ToggleButtons(
-              isSelected: [_showMa200],
-              onPressed: (int index) => _toggleMa200(),
-              children: const [Text('MA 200')],
-            ),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : ToggleButtons(
-              isSelected: _selectedInterval,
-              onPressed: (int index) {
-                for (int buttonIndex = 0;
-                    buttonIndex < _selectedInterval.length;
-                    buttonIndex++) {
-                  if (buttonIndex == index) {
-                    _selectedInterval[buttonIndex] = true;
-                  } else {
-                    _selectedInterval[buttonIndex] = false;
-                  }
-                }
-                setState(() => _selectedInterval = _selectedInterval);
-                _updateCandles(_market, _interval());
-              },
-              children: MarketInterval.values
-                  .map((e) => Text(e.name.substring(1)))
-                  .toList(),
-            ),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : IconButton(
-              onPressed: _refreshData, icon: const Icon(Icons.refresh)),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : IconButton(
-              onPressed: _copyToClipboard, icon: const Icon(Icons.copy)),
-      const SizedBox(width: 10),
-      _markets.isEmpty
-          ? const SizedBox()
-          : IconButton(onPressed: _saveToDisk, icon: const Icon(Icons.save))
-    ]);
+              value: _exch,
+              onChanged: _exchChange),
+          _markets.isEmpty
+              ? const SizedBox()
+              : DropdownButton<String>(
+                  items: _markets
+                      .map((e) => DropdownMenuItem<String>(
+                          value: e.exchangeId, child: Text(e.symbol())))
+                      .toList(),
+                  value: _market.exchangeId,
+                  onChanged: _marketChange),
+          _markets.isEmpty
+              ? const SizedBox()
+              : ToggleButtons(
+                  isSelected: [_showMa200],
+                  onPressed: (int index) => _toggleMa200(),
+                  children: const [Text('MA 200')],
+                ),
+          _markets.isEmpty
+              ? const SizedBox()
+              : ToggleButtons(
+                  isSelected: _selectedInterval,
+                  onPressed: (int index) {
+                    for (int buttonIndex = 0;
+                        buttonIndex < _selectedInterval.length;
+                        buttonIndex++) {
+                      if (buttonIndex == index) {
+                        _selectedInterval[buttonIndex] = true;
+                      } else {
+                        _selectedInterval[buttonIndex] = false;
+                      }
+                    }
+                    setState(() => _selectedInterval = _selectedInterval);
+                    _updateCandles(_market, _interval());
+                  },
+                  children: MarketInterval.values
+                      .map((e) => Text(e.name.substring(1)))
+                      .toList(),
+                ),
+          _markets.isEmpty
+              ? const SizedBox()
+              : IconButton(
+                  onPressed: _refreshData, icon: const Icon(Icons.refresh)),
+          _markets.isEmpty
+              ? const SizedBox()
+              : IconButton(
+                  onPressed: _copyToClipboard, icon: const Icon(Icons.copy)),
+          _markets.isEmpty
+              ? const SizedBox()
+              : IconButton(onPressed: _saveToDisk, icon: const Icon(Icons.save))
+        ]);
   }
 
   @override
