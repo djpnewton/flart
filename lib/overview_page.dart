@@ -11,11 +11,32 @@ import 'coin_data.dart';
 import 'widgets.dart';
 
 final log = Logger('overview_page');
-const cellSize = 140.0;
 
-Widget cell(Widget? child) {
-  return SizedBox(
-      width: cellSize, child: child != null ? Center(child: child) : null);
+const cellSizeMed = 100.0;
+const smallDetailFontSize = 10.0;
+const normalFontSize = 14.0;
+
+class CellSize {
+  double width;
+  bool compact;
+  CellSize(this.width, this.compact);
+}
+
+CellSize cellSize(double maxWidth) {
+  const numCellsExpanded = 7;
+  const numCellsCompact = 4;
+  if (maxWidth >= numCellsExpanded * cellSizeMed) {
+    return CellSize((maxWidth / numCellsExpanded).floorToDouble(), false);
+  }
+  return CellSize((maxWidth / numCellsCompact).floorToDouble(), true);
+}
+
+Widget cell(Widget? child, {required double size, Color? fillColor}) {
+  var c = child != null ? Center(child: child) : null;
+  if (fillColor != null) {
+    return Container(color: fillColor, width: size, child: c);
+  }
+  return SizedBox(width: size, child: c);
 }
 
 class OverviewPage extends StatefulWidget {
@@ -43,30 +64,64 @@ class OverviewPageState extends State<OverviewPage> {
   }
 
   Widget _makeControls() {
-    return Row(children: [
-      const SizedBox(width: 10),
-      const Text('Refresh: '),
-      IconButton(onPressed: _refreshData, icon: const Icon(Icons.refresh)),
-      const SizedBox(width: 20),
-      const Text('Quote asset: '),
-      DropdownButton<String>(
-          items: quoteAssets
-              .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
-              .toList(),
-          value: _quoteAsset,
-          onChanged: _quoteAssetChange),
-      const SizedBox(width: 20),
-      SearchInput(_search),
-      const SizedBox(width: 20),
-      const Text('Show detail using: '),
-      DropdownButton<Exchange>(
-          items: Exchange.values
-              .map((e) =>
-                  DropdownMenuItem<Exchange>(value: e, child: Text(e.name)))
-              .toList(),
-          value: _exch,
-          onChanged: _exchChange),
-    ]);
+    return LayoutBuilder(builder: (context, constraints) {
+      return Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Refresh: '),
+              IconButton(
+                  onPressed: _refreshData, icon: const Icon(Icons.refresh))
+            ]),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Quote asset: '),
+              DropdownButton<String>(
+                  items: quoteAssets
+                      .map((e) =>
+                          DropdownMenuItem<String>(value: e, child: Text(e)))
+                      .toList(),
+                  value: _quoteAsset,
+                  onChanged: _quoteAssetChange),
+            ]),
+            SearchInput(_search),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Show detail using: '),
+              DropdownButton<Exchange>(
+                  items: Exchange.values
+                      .map((e) => DropdownMenuItem<Exchange>(
+                          value: e, child: Text(e.name)))
+                      .toList(),
+                  value: _exch,
+                  onChanged: _exchChange)
+            ])
+          ]);
+    });
+  }
+
+  Widget _headerRow() {
+    return LayoutBuilder(builder: (context, constraints) {
+      var ts = const TextStyle(decoration: TextDecoration.underline);
+      var size = cellSize(constraints.maxWidth);
+      var rowWidgets = <Widget>[
+        cell(Text('Market', style: ts), size: size.width),
+        cell(Text('Last 7 days', style: ts), size: size.width),
+        cell(Text('Price ($_quoteAsset)', style: ts), size: size.width),
+      ];
+      if (!size.compact) {
+        rowWidgets.add(cell(Text('1h %', style: ts), size: size.width));
+        rowWidgets.add(cell(Text('1d %', style: ts), size: size.width));
+        rowWidgets.add(cell(Text('1w %', style: ts), size: size.width));
+        rowWidgets.add(cell(Text('Market Cap ($_quoteAsset)', style: ts),
+            size: size.width));
+      } else {
+        rowWidgets.add(cell(Text('Details', style: ts), size: size.width));
+      }
+      return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: rowWidgets);
+    });
   }
 
   List<Widget> _overviewRows() {
@@ -86,25 +141,15 @@ class OverviewPageState extends State<OverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    var ts = const TextStyle(decoration: TextDecoration.underline);
-    return SingleChildScrollView(
-        child: Column(children: [
+    return Column(children: [
       _makeControls(),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-        cell(Text('Market', style: ts)),
-        cell(Text('Last 7 days', style: ts)),
-        cell(Text('Market Cap', style: ts)),
-        cell(Text('Price', style: ts)),
-        cell(Text('1h %', style: ts)),
-        cell(Text('1d %', style: ts)),
-        cell(Text('1w %', style: ts))
-      ]),
+      _headerRow(),
       _retreivingData
           ? const Center(child: CircularProgressIndicator())
           : _markets.isNotEmpty
-              ? Column(children: _overviewRows())
+              ? Expanded(child: ListView(children: _overviewRows()))
               : const Text('no data to show')
-    ]));
+    ]);
   }
 
   void _quoteAssetChange(String? asset) {
@@ -272,54 +317,83 @@ class OverviewWidgetState extends State<OverviewWidget> {
     return (diff / avg) * 100;
   }
 
-  Widget _changeIndicator(double changePercent) {
+  Widget _changeIndicator(double changePercent, {String? smallDetail}) {
+    var ts = TextStyle(
+        fontSize: smallDetail != null ? smallDetailFontSize : normalFontSize,
+        color: changePercent >= 0 ? Colors.green : Colors.red);
     var upArrow = '▲';
     var downArrow = '▼';
     var changeStr = changePercent.toStringAsFixed(2);
+    var detail = smallDetail != null ? ' $smallDetail' : '';
     if (changePercent >= 0) {
-      return Text('$upArrow$changeStr%',
-          style: const TextStyle(color: Colors.green));
+      return Text('$upArrow $changeStr%$detail', style: ts);
     } else {
-      return Text('$downArrow$changeStr%',
-          style: const TextStyle(color: Colors.red));
+      return Text('$downArrow $changeStr%$detail', style: ts);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const sparkColor = Colors.blue;
-    var rowWidgets = [
-      cell(TextButton(
-          child: Row(mainAxisAlignment: MainAxisAlignment.start, children: [
-            _baseAsset.isNotEmpty
-                ? SvgPicture.network(svgUrl(_baseAsset.toLowerCase()),
-                    placeholderBuilder: (context) =>
-                        Image.asset('images/coin.png', width: 32, height: 32))
-                : const SizedBox(),
-            const SizedBox(width: 10),
-            Text(_baseAsset)
-          ]),
-          onPressed: () => widget.onMarketClick(_baseAsset, _quoteAsset)))
-    ];
-    if (_sparkline7d.isNotEmpty) {
-      rowWidgets.add(cell(SizedBox(
-          width: 100,
-          height: 30,
-          child:
-              CustomPaint(painter: SparkPainter(_sparkline7d, sparkColor)))));
-      rowWidgets.add(cell(Text('${_nfc.format(_marketCap)} $_quoteAsset')));
-      rowWidgets.add(cell(Text('${_price.toStringAsFixed(2)} $_quoteAsset')));
-      rowWidgets.add(cell(_changeIndicator(_change1h)));
-      rowWidgets.add(cell(_changeIndicator(_change24h)));
-      rowWidgets.add(cell(_changeIndicator(_change7d)));
-    } else {
-      rowWidgets.add(cell(const CircularProgressIndicator()));
-      rowWidgets.add(cell(null));
-    }
-    return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: rowWidgets));
+    return LayoutBuilder(builder: (context, constraints) {
+      var size = cellSize(constraints.maxWidth);
+      var iconSize = size.width < cellSizeMed ? 24.0 : 32.0;
+      const sparkColor = Colors.blue;
+      var rowWidgets = [
+        cell(
+            TextButton(
+                child:
+                    Row(mainAxisAlignment: MainAxisAlignment.start, children: [
+                  _baseAsset.isNotEmpty
+                      ? SvgPicture.network(svgUrl(_baseAsset.toLowerCase()),
+                          width: iconSize,
+                          height: iconSize,
+                          placeholderBuilder: (context) => Image.asset(
+                              'images/coin.png',
+                              width: iconSize,
+                              height: iconSize))
+                      : const SizedBox(),
+                  const SizedBox(width: 5),
+                  Expanded(
+                      child: Text(_baseAsset,
+                          maxLines: 1, overflow: TextOverflow.fade))
+                ]),
+                onPressed: () => widget.onMarketClick(_baseAsset, _quoteAsset)),
+            size: size.width)
+      ];
+      if (_sparkline7d.isNotEmpty) {
+        rowWidgets.add(cell(
+            SizedBox(
+                width: size.width,
+                height: 30,
+                child: CustomPaint(
+                    painter: SparkPainter(_sparkline7d, sparkColor))),
+            size: size.width));
+        rowWidgets.add(cell(Text(_price.toStringAsFixed(2)), size: size.width));
+        if (!size.compact) {
+          rowWidgets.add(cell(_changeIndicator(_change1h), size: size.width));
+          rowWidgets.add(cell(_changeIndicator(_change24h), size: size.width));
+          rowWidgets.add(cell(_changeIndicator(_change7d), size: size.width));
+          rowWidgets.add(cell(Text(_nfc.format(_marketCap)), size: size.width));
+        } else {
+          var detailsCol = Column(children: [
+            _changeIndicator(_change1h, smallDetail: '1h'),
+            _changeIndicator(_change24h, smallDetail: '1d'),
+            _changeIndicator(_change7d, smallDetail: '1w'),
+            Text('${_nfc.format(_marketCap)} Cap',
+                style: const TextStyle(fontSize: smallDetailFontSize))
+          ]);
+          rowWidgets.add(cell(detailsCol, size: size.width));
+        }
+      } else {
+        rowWidgets
+            .add(cell(const CircularProgressIndicator(), size: size.width));
+        rowWidgets.add(cell(null, size: size.width));
+      }
+      return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: rowWidgets));
+    });
   }
 }
