@@ -24,7 +24,7 @@ class CellSize {
 
 CellSize cellSize(double maxWidth) {
   const numCellsExpanded = 7;
-  const numCellsCompact = 4;
+  const numCellsCompact = 3;
   if (maxWidth >= numCellsExpanded * cellSizeMed) {
     return CellSize((maxWidth / numCellsExpanded).floorToDouble(), false);
   }
@@ -102,22 +102,19 @@ class OverviewPageState extends State<OverviewPage> {
 
   Widget _headerRow() {
     return LayoutBuilder(builder: (context, constraints) {
-      var ts = const TextStyle(decoration: TextDecoration.underline);
       var size = cellSize(constraints.maxWidth);
+      if (size.compact) return const SizedBox();
+      var ts = const TextStyle(decoration: TextDecoration.underline);
       var rowWidgets = <Widget>[
         cell(Text('Market', style: ts), size: size.width),
         cell(Text('Last 7 days', style: ts), size: size.width),
         cell(Text('Price ($_quoteAsset)', style: ts), size: size.width),
       ];
-      if (!size.compact) {
-        rowWidgets.add(cell(Text('1h %', style: ts), size: size.width));
-        rowWidgets.add(cell(Text('1d %', style: ts), size: size.width));
-        rowWidgets.add(cell(Text('1w %', style: ts), size: size.width));
-        rowWidgets.add(cell(Text('Market Cap ($_quoteAsset)', style: ts),
-            size: size.width));
-      } else {
-        rowWidgets.add(cell(Text('Details', style: ts), size: size.width));
-      }
+      rowWidgets.add(cell(Text('1h %', style: ts), size: size.width));
+      rowWidgets.add(cell(Text('1d %', style: ts), size: size.width));
+      rowWidgets.add(cell(Text('1w %', style: ts), size: size.width));
+      rowWidgets.add(
+          cell(Text('Market Cap ($_quoteAsset)', style: ts), size: size.width));
       return Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: rowWidgets);
@@ -337,6 +334,7 @@ class OverviewWidgetState extends State<OverviewWidget> {
     return LayoutBuilder(builder: (context, constraints) {
       var size = cellSize(constraints.maxWidth);
       var iconSize = size.width < cellSizeMed ? 24.0 : 32.0;
+      var sparklineHeight = size.compact ? 50.0 : 30.0;
       const sparkColor = Colors.blue;
       var rowWidgets = [
         cell(
@@ -361,20 +359,41 @@ class OverviewWidgetState extends State<OverviewWidget> {
             size: size.width)
       ];
       if (_sparkline7d.isNotEmpty) {
-        rowWidgets.add(cell(
-            SizedBox(
-                width: size.width,
-                height: 30,
-                child: CustomPaint(
-                    painter: SparkPainter(_sparkline7d, sparkColor))),
-            size: size.width));
-        rowWidgets.add(cell(Text(_price.toStringAsFixed(2)), size: size.width));
+        var sparkline = SizedBox(
+            width: size.width,
+            height: sparklineHeight,
+            child:
+                CustomPaint(painter: SparkPainter(_sparkline7d, sparkColor)));
         if (!size.compact) {
+          rowWidgets.add(cell(sparkline, size: size.width));
+          rowWidgets
+              .add(cell(Text(_price.toStringAsFixed(2)), size: size.width));
           rowWidgets.add(cell(_changeIndicator(_change1h), size: size.width));
           rowWidgets.add(cell(_changeIndicator(_change24h), size: size.width));
           rowWidgets.add(cell(_changeIndicator(_change7d), size: size.width));
           rowWidgets.add(cell(Text(_nfc.format(_marketCap)), size: size.width));
         } else {
+          var gradientColor = Theme.of(context).colorScheme.surface;
+          var sparkPrice = Stack(children: [
+            sparkline,
+            Container(
+                height: sparklineHeight,
+                alignment: Alignment.bottomCenter,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        gradientColor.withAlpha(0),
+                        gradientColor.withAlpha(50),
+                        gradientColor.withAlpha(100)
+                      ]),
+                ),
+                child: Text('${_price.toStringAsFixed(2)} $_quoteAsset\n1w',
+                    style: const TextStyle(fontSize: 10),
+                    textAlign: TextAlign.center)),
+          ]);
+          rowWidgets.add(cell(sparkPrice, size: size.width));
           var detailsCol = Column(children: [
             _changeIndicator(_change1h, smallDetail: '1h'),
             _changeIndicator(_change24h, smallDetail: '1d'),
