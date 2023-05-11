@@ -105,9 +105,9 @@ Future<MarketOverviewResult> marketOverview(String vsCurrency) async {
         item['high_24h'].toDouble(),
         item['low_24h'].toDouble(),
         item['circulating_supply'].toDouble(),
-        item['price_change_percentage_1h_in_currency'],
-        item['price_change_percentage_24h_in_currency'],
-        item['price_change_percentage_7d_in_currency'],
+        item['price_change_percentage_1h_in_currency'] ?? 0,
+        item['price_change_percentage_24h_in_currency'] ?? 0,
+        item['price_change_percentage_7d_in_currency'] ?? 0,
         sparkline);
     markets.add(market);
   }
