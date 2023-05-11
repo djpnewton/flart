@@ -27,7 +27,7 @@ jobs:
           flutter-version: '3.10.x'
       - run: flutter pub get
       #- run: flutter test
-      - run: flutter dartfmt -n --set-exit-if-changed lib
+      - run: dart format --set-exit-if-changed lib
       - run: flutter analyze
       - if: ${{ github.event_name == 'push' && github.ref_name == 'master' }}
         uses: bluefireteam/flutter-gh-pages@v7
